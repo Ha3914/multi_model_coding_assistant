@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>多模型协同编程助手</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #121931;
+      --muted: #8fa2c9;
+      --text: #eaf1ff;
+      --accent: #5b8cff;
+      --border: rgba(255,255,255,0.1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #18254f 0%, var(--bg) 46%);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    h1 { margin: 0 0 10px; font-size: 34px; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: rgba(18, 25, 49, 0.88);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.25);
+      padding: 20px;
+    }
+    label { display: block; margin: 0 0 8px; font-weight: 700; }
+    textarea, input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      padding: 12px 14px;
+      outline: none;
+    }
+    textarea { min-height: 160px; resize: vertical; }
+    .mini { min-height: 120px; }
+    .btn {
+      margin-top: 14px;
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 18px;
+      background: linear-gradient(90deg, #5b8cff, #7a5cff);
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+    }
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .stage {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 14px;
+    }
+    .stage h3 { margin: 0 0 8px; font-size: 17px; }
+    .meta {
+      color: #9db1d8;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(6, 10, 23, 0.65);
+      border-radius: 12px;
+      padding: 14px;
+      overflow: auto;
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .final {
+      border: 1px solid rgba(91,140,255,0.3);
+      background: rgba(91,140,255,0.08);
+    }
+    .loading { color: #ffd76a; margin: 10px 0; }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>多模型协同编程助手</h1>
+    <div class="sub">需求分析 → 架构设计 → 代码生成 → 测试设计 → Code Review → 文档集成</div>
+    <div class="grid">
+      <div class="card">
+        <label for="task">编程任务</label>
+        <textarea id="task" placeholder="例如：帮我实现一个支持 JWT 登录、RBAC 权限控制、用户管理 CRUD 的 FastAPI 后端服务"></textarea>
+
+        <label for="context" style="margin-top: 16px;">补充上下文</label>
+        <textarea id="context" class="mini" placeholder="可以粘贴 PRD、错误日志、接口约束、数据库设计、技术栈要求等"></textarea>
+
+        <button class="btn" id="submitBtn">开始协同编排</button>
+        <div class="hint">
+          说明：默认会按角色分工调用不同模型。你可以在后端 .env 中为 planner / architect / coder / tester / reviewer / doc_writer / integrator 配置不同 provider 和 model。
+        </div>
+        <div class="loading" id="loading"></div>
+      </div>
+
+      <div class="card">
+        <div id="result"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

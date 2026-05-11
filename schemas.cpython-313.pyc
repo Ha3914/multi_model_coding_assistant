@@ -1,0 +1,71 @@
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    app_name: str = "Multi-Model Coding Assistant"
+    app_env: str = "development"
+    default_language: str = "zh-CN"
+    max_repo_files: int = 20
+    max_repo_chars: int = 18000
+    default_temperature: float = 0.2
+    http_timeout_seconds: int = 120
+
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+
+    deepseek_api_key: str | None = None
+    deepseek_base_url: str | None = None
+
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str | None = None
+
+    custom_api_key: str | None = None
+    custom_base_url: str | None = None
+
+    planner_provider: str = "openrouter"
+    planner_model: str = "anthropic/claude-3.7-sonnet"
+
+    architect_provider: str = "openrouter"
+    architect_model: str = "google/gemini-2.5-pro"
+
+    coder_provider: str = "deepseek"
+    coder_model: str = "deepseek-chat"
+
+    tester_provider: str = "openai"
+    tester_model: str = "gpt-4.1-mini"
+
+    reviewer_provider: str = "openrouter"
+    reviewer_model: str = "anthropic/claude-3.7-sonnet"
+
+    doc_writer_provider: str = "openai"
+    doc_writer_model: str = "gpt-4.1-mini"
+
+    integrator_provider: str = "openrouter"
+    integrator_model: str = "google/gemini-2.5-pro"
+
+    def provider_configs(self) -> dict[str, dict[str, str | None]]:
+        return {
+            "openai": {"api_key": self.openai_api_key, "base_url": self.openai_base_url},
+            "deepseek": {"api_key": self.deepseek_api_key, "base_url": self.deepseek_base_url},
+            "openrouter": {"api_key": self.openrouter_api_key, "base_url": self.openrouter_base_url},
+            "custom": {"api_key": self.custom_api_key, "base_url": self.custom_base_url},
+        }
+
+    def role_mapping(self) -> dict[str, dict[str, str]]:
+        return {
+            "planner": {"provider": self.planner_provider, "model": self.planner_model},
+            "architect": {"provider": self.architect_provider, "model": self.architect_model},
+            "coder": {"provider": self.coder_provider, "model": self.coder_model},
+            "tester": {"provider": self.tester_provider, "model": self.tester_model},
+            "reviewer": {"provider": self.reviewer_provider, "model": self.reviewer_model},
+            "doc_writer": {"provider": self.doc_writer_provider, "model": self.doc_writer_model},
+            "integrator": {"provider": self.integrator_provider, "model": self.integrator_model},
+        }
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

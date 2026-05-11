@@ -1,0 +1,24 @@
+from app.config import Settings
+from app.providers.openai_compatible import OpenAICompatibleProvider
+
+
+class ProviderRegistry:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self._providers = {}
+        for name, cfg in settings.provider_configs().items():
+            api_key = cfg.get("api_key")
+            if api_key:
+                self._providers[name] = OpenAICompatibleProvider(
+                    api_key=api_key,
+                    base_url=cfg.get("base_url"),
+                    timeout=settings.http_timeout_seconds,
+                )
+
+    def get(self, provider_name: str):
+        provider = self._providers.get(provider_name)
+        if not provider:
+            raise ValueError(
+                f"Provider '{provider_name}' 未配置。请在 .env 中填写对应 API Key / Base URL。"
+            )
+        return provider

@@ -1,0 +1,72 @@
+const taskEl = document.getElementById('task');
+const contextEl = document.getElementById('context');
+const submitBtn = document.getElementById('submitBtn');
+const resultEl = document.getElementById('result');
+const loadingEl = document.getElementById('loading');
+
+function escapeHtml(input) {
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function renderResponse(data) {
+  const planHtml = data.plan.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+  const stagesHtml = data.stages.map(stage => `
+    <div class="stage">
+      <h3>${escapeHtml(stage.stage)}</h3>
+      <div class="meta">角色：${escapeHtml(stage.role)} ｜ Provider：${escapeHtml(stage.provider)} ｜ Model：${escapeHtml(stage.model)}</div>
+      <pre>${escapeHtml(stage.output)}</pre>
+    </div>
+  `).join('');
+
+  resultEl.innerHTML = `
+    <div class="stage final">
+      <h3>执行计划</h3>
+      <pre>${escapeHtml(data.plan.join('\n'))}</pre>
+    </div>
+    ${stagesHtml}
+    <div class="stage final">
+      <h3>最终交付</h3>
+      <pre>${escapeHtml(data.final_answer)}</pre>
+    </div>
+  `;
+}
+
+submitBtn.addEventListener('click', async () => {
+  const task = taskEl.value.trim();
+  const extraContext = contextEl.value.trim();
+  if (!task) {
+    alert('请先输入编程任务');
+    return;
+  }
+
+  loadingEl.textContent = '正在调用多模型协同处理，请稍候...';
+  submitBtn.disabled = true;
+  resultEl.innerHTML = '';
+
+  try {
+    const response = await fetch('/api/v1/assist/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task,
+        extra_context: extraContext,
+        repo_files: [],
+        language: 'zh-CN'
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || '请求失败');
+    }
+    renderResponse(data);
+  } catch (error) {
+    resultEl.innerHTML = `<div class="stage"><h3>错误</h3><pre>${escapeHtml(error.message)}</pre></div>`;
+  } finally {
+    loadingEl.textContent = '';
+    submitBtn.disabled = false;
+  }
+});

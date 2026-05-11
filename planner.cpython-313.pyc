@@ -1,0 +1,151 @@
+import asyncio
+from typing import Any
+
+from app.config import Settings
+from app.prompts import ROLE_SYSTEM_PROMPTS
+from app.schemas import AssistRequest, AssistResponse, StageResult
+from app.services.planner import PipelinePlanner, StageSpec
+from app.services.provider_registry import ProviderRegistry
+from app.utils.repo_loader import build_repo_context
+
+
+class CodingAssistantOrchestrator:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self.registry = ProviderRegistry(settings)
+        self.pipeline_planner = PipelinePlanner()
+
+    async def run(self, request: AssistRequest) -> AssistResponse:
+        plan_specs = self.pipeline_planner.build(request.task)
+        stage_map = {stage.name: stage for stage in plan_specs}
+        role_mapping = self.settings.role_mapping()
+        role_mapping = self._apply_overrides(role_mapping, request)
+        temperature = request.temperature or self.settings.default_temperature
+
+        repo_context = build_repo_context(
+            request.repo_files,
+            max_files=self.settings.max_repo_files,
+            max_chars=self.settings.max_repo_chars,
+        )
+
+        completed: dict[str, StageResult] = {}
+        pending = {stage.name for stage in plan_specs}
+
+        while pending:
+            ready = [
+                stage_map[name]
+                for name in list(pending)
+                if all(dep in completed for dep in stage_map[name].depends_on)
+            ]
+            if not ready:
+                raise RuntimeError("流水线依赖存在循环，无法继续执行。")
+
+            results = await asyncio.gather(
+                *[
+                    self._execute_stage(
+                        stage=stage,
+                        request=request,
+                        repo_context=repo_context,
+                        completed=completed,
+                        role_mapping=role_mapping,
+                        temperature=temperature,
+                    )
+                    for stage in ready
+                ]
+            )
+
+            for result in results:
+                completed[result.stage] = result
+                pending.remove(result.stage)
+
+        ordered_results = [completed[stage.name] for stage in plan_specs]
+        return AssistResponse(
+            plan=[f"{stage.name}: {stage.goal}" for stage in plan_specs],
+            stages=ordered_results,
+            final_answer=completed[plan_specs[-1].name].output,
+        )
+
+    async def _execute_stage(
+        self,
+        *,
+        stage: StageSpec,
+        request: AssistRequest,
+        repo_context: str,
+        completed: dict[str, StageResult],
+        role_mapping: dict[str, dict[str, str]],
+        temperature: float,
+    ) -> StageResult:
+        role_cfg = role_mapping[stage.role]
+        provider_name = role_cfg["provider"]
+        model_name = role_cfg["model"]
+        provider = self.registry.get(provider_name)
+
+        messages = self._build_messages(
+            role=stage.role,
+            stage=stage,
+            request=request,
+            repo_context=repo_context,
+            completed=completed,
+        )
+        response = await provider.chat(
+            model=model_name,
+            messages=messages,
+            temperature=temperature,
+        )
+        return StageResult(
+            stage=stage.name,
+            role=stage.role,
+            provider=provider_name,
+            model=model_name,
+            depends_on=stage.depends_on,
+            output=response.content.strip(),
+        )
+
+    def _build_messages(
+        self,
+        *,
+        role: str,
+        stage: StageSpec,
+        request: AssistRequest,
+        repo_context: str,
+        completed: dict[str, StageResult],
+    ) -> list[dict[str, str]]:
+        previous_outputs = "\n\n".join(
+            [f"## {name}\n{result.output}" for name, result in completed.items()]
+        ) or "暂无上游阶段输出。"
+
+        user_prompt = f"""
+当前阶段：{stage.name}
+阶段目标：{stage.goal}
+输出语言：{request.language}
+
+# 用户任务
+{request.task}
+
+# 额外上下文
+{request.extra_context or '无'}
+
+# 仓库上下文
+{repo_context}
+
+# 上游阶段结果
+{previous_outputs}
+
+请直接产出当前阶段最有价值的结果，避免空话和重复。
+""".strip()
+
+        return [
+            {"role": "system", "content": ROLE_SYSTEM_PROMPTS[role]},
+            {"role": "user", "content": user_prompt},
+        ]
+
+    def _apply_overrides(
+        self,
+        role_mapping: dict[str, dict[str, str]],
+        request: AssistRequest,
+    ) -> dict[str, dict[str, str]]:
+        merged: dict[str, dict[str, str]] = {key: value.copy() for key, value in role_mapping.items()}
+        for role, override in request.role_overrides.items():
+            if role in merged:
+                merged[role] = {"provider": override.provider, "model": override.model}
+        return merged

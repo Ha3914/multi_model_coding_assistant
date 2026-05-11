@@ -1,0 +1,34 @@
+from dataclasses import dataclass, field
+
+
+@dataclass
+class StageSpec:
+    name: str
+    role: str
+    goal: str
+    depends_on: list[str] = field(default_factory=list)
+
+
+class PipelinePlanner:
+    def build(self, task: str) -> list[StageSpec]:
+        normalized = task.lower()
+
+        if any(keyword in normalized for keyword in ["bug", "报错", "异常", "debug", "修复"]):
+            return [
+                StageSpec("requirements_analysis", "planner", "提炼 bug 现象、复现条件、怀疑根因和修复范围"),
+                StageSpec("solution_design", "architect", "给出修复方案、影响范围和回归策略", ["requirements_analysis"]),
+                StageSpec("patch_generation", "coder", "输出修复代码或关键补丁", ["solution_design"]),
+                StageSpec("regression_tests", "tester", "生成回归测试点和测试代码", ["patch_generation"]),
+                StageSpec("code_review", "reviewer", "审查补丁风险和遗漏", ["patch_generation"]),
+                StageSpec("delivery", "integrator", "汇总最终修复方案、代码、测试和风险提示", ["regression_tests", "code_review"]),
+            ]
+
+        return [
+            StageSpec("requirements_analysis", "planner", "梳理业务目标、输入输出、边界和非功能需求"),
+            StageSpec("architecture_design", "architect", "输出系统设计、模块划分、目录结构与关键接口", ["requirements_analysis"]),
+            StageSpec("implementation", "coder", "生成核心实现代码", ["architecture_design"]),
+            StageSpec("test_design", "tester", "生成测试策略、测试用例和自动化测试代码", ["implementation"]),
+            StageSpec("code_review", "reviewer", "审查代码质量、安全性、性能和可维护性", ["implementation"]),
+            StageSpec("documentation", "doc_writer", "编写部署说明、使用说明和接口说明", ["implementation"]),
+            StageSpec("delivery", "integrator", "整合全部结果，生成最终交付内容", ["test_design", "code_review", "documentation"]),
+        ]
